@@ -1,3 +1,7 @@
+import pandas as pd
+from selenium.webdriver.common.by import By
+
+
 def get_map_match(tr_tag):
     Map = tr_tag.find('td', class_='statsDetail')\
         .find('div', class_='dynamic-map-name-full').text
@@ -151,3 +155,48 @@ def get_rounds_seq(soup) -> list:
         count.get('title') for count in right_rounds_seq
         ]
     return left_rounds_seq, right_rounds_seq
+
+
+def get_stats_players(
+        driver, date_match, url_match, side, value_team, value_table):
+
+    if side == 'both':
+        pass
+    elif side == 'ts':
+        button_ts_side = driver.find_element(
+            by=By.CSS_SELECTOR,
+            value='.t-stats-only > span:nth-child(1)'
+            )
+        button_ts_side.click()
+    elif side == 'ct':
+        button_ts_side = driver.find_element(
+            by=By.CSS_SELECTOR,
+            value='.ct-stats-only > span:nth-child(1)'
+            )
+        button_ts_side.click()
+
+    team = driver.find_element(
+        by=By.CSS_SELECTOR,
+        value=value_team
+        )
+    table = driver.find_element(
+        by=By.CSS_SELECTOR,
+        value=value_table
+    )
+    rows = table.find_elements(by=By.TAG_NAME, value='tr')
+    data_for_table = []
+    for row in rows:
+        row_values = row.find_elements(by=By.TAG_NAME, value='td')
+        row_values = [x.text for x in row_values]
+        row_values[0] = team.text + '_' + row_values[0]
+        data_for_table.append(row_values)
+    df_stats_players_both_team = pd.DataFrame(
+        data=data_for_table,
+        columns=[
+            'name', 'k_hs', 'a_f', 'd', 'kast', 'kd_diff',
+            'adr', 'fk_diff', 'rating'
+        ]
+    )
+    df_stats_players_both_team['date'] = date_match
+    df_stats_players_both_team['url_match'] = url_match
+    return df_stats_players_both_team

@@ -28,3 +28,8 @@ LIST_best_rating = []
 # история раундов
 LIST_left_rounds_seq = []
 LIST_right_rounds_seq = []
+
+# статистики игроков в матчах
+LIST_stats_players_both = []
+LIST_stats_players_ts = []
+LIST_stats_players_ct = []

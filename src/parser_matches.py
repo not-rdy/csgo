@@ -1,19 +1,29 @@
 from bs4 import BeautifulSoup
 from time import sleep
-from tqdm import tqdm
 import pandas as pd
 import os
 import requests
 import utils
 import dat
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
+# selenium driver
+options = Options()
+options.headless = True
+driver = webdriver.Chrome(
+    '/home/dev/projects/games/csgo/chromedriver/chromedriver',
+    options=options
+    )
+# data path & url main
 DATA_PATH = '/home/dev/projects/games/csgo/data/raw'
 url_main = 'https://www.hltv.org/stats/matches?offset='
 
 # итерируемся по страницам со всеми матчами (по 50 матчей на странице)
 id_match = 0
-
-for part in tqdm(list(range(0, 50, 50)), total=len(list(range(0, 50, 50)))):
+pbar_1 = list(range(0, 50, 50))
+for part in pbar_1:
     # получаем список из 50 новых матчей
     url_target = url_main + str(part)
     r = requests.get(url_target)
@@ -36,14 +46,25 @@ for part in tqdm(list(range(0, 50, 50)), total=len(list(range(0, 50, 50)))):
     dates_matches = list(map(utils.get_date_match, soup))
 
     # проваливаемся в каждый матч и собираем информацию
-    pbar = tqdm(zip(dates_matches, maps_matches, urls_matches))
-    for date_match, map_match, url_match in pbar:
+    pbar_2 = zip(dates_matches, maps_matches, urls_matches)
+    for date_match, map_match, url_match in pbar_2:
 
         dat.LIST_date.append(date_match)
         dat.LIST_url_match.append(url_match)
 
+        # кидаем запросы
         r = requests.get(url_match)
         sleep(3)
+        driver.get(url_match)
+        sleep(3)
+        v = '//*[@id="CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll"]'
+        button_allow_cookie = driver.find_element(
+            by=By.XPATH,
+            value=v
+            )
+        button_allow_cookie.click()
+        sleep(3)
+        
         soup = BeautifulSoup(r.text, 'lxml')
 
         ####################
@@ -89,7 +110,75 @@ for part in tqdm(list(range(0, 50, 50)), total=len(list(range(0, 50, 50)))):
         dat.LIST_left_rounds_seq.append(left_rounds_seq)
         dat.LIST_right_rounds_seq.append(right_rounds_seq)
 
+        #################################
+        # статистики игроков за матч    #
+        #################################
 
+        # BOTH side team 1
+        df_stats_players_both_team1 = utils\
+            .get_stats_players(
+                driver=driver,
+                date_match=date_match,
+                url_match=url_match,
+                side='both',
+                value_team='div.stats-content:nth-child(13) > table:nth-child(1) > thead:nth-child(1) > tr:nth-child(1) > th:nth-child(1)',
+                value_table='div.stats-content:nth-child(13) > table:nth-child(1) > tbody:nth-child(2)'
+                )
+        dat.LIST_stats_players_both.append(df_stats_players_both_team1)
+        # BOTH side team 2
+        df_stats_players_both_team2 = utils\
+            .get_stats_players(
+                driver=driver,
+                date_match=date_match,
+                url_match=url_match,
+                side='both',
+                value_team='div.stats-content:nth-child(32) > table:nth-child(1) > thead:nth-child(1) > tr:nth-child(1) > th:nth-child(1)',
+                value_table='div.stats-content:nth-child(32) > table:nth-child(1) > tbody:nth-child(2)'
+                )
+        dat.LIST_stats_players_both.append(df_stats_players_both_team2)
+        
+        # TS side team 1
+        df_stats_players_both_team1 = utils\
+            .get_stats_players(
+                driver=driver,
+                date_match=date_match,
+                url_match=url_match,
+                side='ts',
+                value_team='html body.colsCustom1101 div.bgPadding div.widthControl div.colCon div.contentCol div.stats-section.stats-match div.stats-content table.stats-table.totalstats thead tr th.st-teamname.text-ellipsis',
+                value_table='div.stats-content:nth-child(13) > table:nth-child(1) > tbody:nth-child(2)'
+                )
+        dat.LIST_stats_players_ts.append(df_stats_players_both_team1)
+        # TS side team 2
+        df_stats_players_both_team2 = utils\
+            .get_stats_players(
+                driver=driver,
+                date_match=date_match,
+                url_match=url_match,
+                side='ts',
+                value_team='div.stats-content:nth-child(32) > table:nth-child(1) > thead:nth-child(1) > tr:nth-child(1) > th:nth-child(1)',
+                value_table='div.stats-content:nth-child(32) > table:nth-child(1) > tbody:nth-child(2)'
+                )
+        dat.LIST_stats_players_ts.append(df_stats_players_both_team2)
+        
+        ###################
+        # test ############
+        cols = ['name', 'k_hs', 'a_f', 'd', 'kast', 'kd_diff',
+            'adr', 'fk_diff', 'rating']
+        df_both = pd.concat(dat.LIST_stats_players_both)
+        df_ts = pd.concat(dat.LIST_stats_players_ts)
+        print(df_both.loc[:, cols])
+        print(df_ts.loc[:, cols])
+
+
+
+        break
+    break
+
+# quit chrome
+driver.close()
+driver.quit()
+
+###
 df_first_info = pd.DataFrame({
     'date': dat.LIST_date,
     'url_match': dat.LIST_url_match,
@@ -107,7 +196,7 @@ df_first_info = pd.DataFrame({
     'clutches': dat.LIST_clutches
     })
 df_first_info.to_csv(os.path.join(DATA_PATH, 'df_first_info.csv'))
-
+###
 df_best_stats = pd.DataFrame({
     'date': dat.LIST_date,
     'url_match': dat.LIST_url_match,
@@ -119,7 +208,7 @@ df_best_stats = pd.DataFrame({
     'best_rating': dat.LIST_best_rating
 })
 df_best_stats.to_csv(os.path.join(DATA_PATH, 'df_best_stats.csv'))
-
+###
 df_rounds_seq = pd.DataFrame({
     'date': dat.LIST_date,
     'url_match': dat.LIST_url_match,
@@ -127,3 +216,15 @@ df_rounds_seq = pd.DataFrame({
     'right_rounds_seq': dat.LIST_right_rounds_seq
     })
 df_rounds_seq.to_csv(os.path.join(DATA_PATH, 'df_rounds_seq.csv'))
+###
+df_stats_players_both = pd.concat(dat.LIST_stats_players_both)\
+    .reset_index(drop=True)
+df_stats_players_both.to_csv(
+    os.path.join(DATA_PATH, 'df_stats_players_both.csv')
+    )
+##
+df_stats_players_ts = pd.concat(dat.LIST_stats_players_ts)\
+    .reset_index(drop=True)
+df_stats_players_ts.to_csv(
+    os.path.join(DATA_PATH, 'df_stats_players_ts.csv')
+)
