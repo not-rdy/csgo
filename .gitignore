@@ -1,3 +1,5 @@
-.vscode/**
-src/__pycache__/**
-notebooks/__pycache__/**
+.vscode/
+/src/__pycache__/
+/notebooks/__pycache__/
+/data/
+/logs/
